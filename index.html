@@ -28,10 +28,10 @@ canvas{display:block;width:100%;height:auto;image-rendering:pixelated;touch-acti
 #startBtn,.primary{background:var(--pink);color:#27152c;font-weight:900;padding:12px;border-radius:6px;box-shadow:0 4px 0 #a83f77}
 #startBtn:active,.primary:active{transform:translateY(2px);box-shadow:0 2px 0 #a83f77}
 .help{font-size:10px;line-height:1.5;color:var(--muted)}
-.controls{display:none;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:14px}
+.controls{display:none;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:14px}
 .ctrl{background:#302b51;border:2px solid #615a8c;border-radius:8px;min-height:54px;font-size:23px;font-weight:bold;box-shadow:0 4px 0 #0d0c18;user-select:none}
 .ctrl:active{transform:translateY(2px);box-shadow:0 2px 0 #0d0c18}
-.ctrl.rotate{color:var(--yellow)} .ctrl.move{color:var(--cyan)}
+.ctrl.rotate{color:var(--yellow)} .ctrl.move{color:var(--cyan)} .ctrl.drop{color:var(--pink)}
 .footer{text-align:center;color:#8982ac;font-size:10px;margin-top:14px}
 .overlay{position:absolute;inset:5px;display:flex;align-items:center;justify-content:center;background:#100f20eF;padding:16px;text-align:center;border-radius:3px}
 .overlay.hidden{display:none}
@@ -79,13 +79,14 @@ canvas{display:block;width:100%;height:auto;image-rendering:pixelated;touch-acti
       <div class="panel"><div class="label">LÍNEAS</div><div class="value" id="lines">0 / 8</div></div>
       <div class="panel"><div class="label">SIGUIENTE</div><canvas id="next" width="120" height="100"></canvas></div>
       <div class="panel"><div class="label">ESTADO</div><div class="message" id="status">Todo listo. ¡A jugar!</div></div>
-      <div class="panel help">← → mover<br>↑ girar pieza<br>↓ no hace falta 😉<br><br>En móvil usa los controles.</div>
+      <div class="panel help">← → mover<br>↑ girar pieza<br>↓ acelerar caída<br><br>En móvil mantén ⬇ pulsado.</div>
     </aside>
   </section>
   <div class="controls" aria-label="Controles del juego">
     <button class="ctrl move" data-action="left" aria-label="Mover izquierda">◀</button>
     <button class="ctrl move" data-action="right" aria-label="Mover derecha">▶</button>
     <button class="ctrl rotate" data-action="rotate" aria-label="Girar pieza">↻</button>
+    <button class="ctrl drop" data-action="drop" aria-label="Acelerar caída" title="Mantén pulsado para acelerar">⬇</button>
     <button class="ctrl" data-action="pause" aria-label="Pausar">Ⅱ</button>
   </div>
   <div class="footer">HECHO DE PIXELES Y UN POQUITO DE SUERTE ✦</div>
@@ -102,7 +103,7 @@ const SHAPES={
  I:[[1,1,1,1]], J:[[1,0,0],[1,1,1]], L:[[0,0,1],[1,1,1]],
  O:[[1,1],[1,1]], S:[[0,1,1],[1,1,0]], T:[[0,1,0],[1,1,1]], Z:[[1,1,0],[0,1,1]]
 };
-let board, piece, nextType, score, lines, running=false, paused=false, last=0, acc=0, dropMs=850, toastTimer, seen=new Set();
+let board, piece, nextType, score, lines, running=false, paused=false, last=0, acc=0, dropMs=850, fastDrop=false, toastTimer, seen=new Set();
 function newBoard(){return Array.from({length:ROWS},()=>Array(COLS).fill(null))}
 function randomType(){return Object.keys(SHAPES)[Math.floor(Math.random()*7)]}
 function makePiece(type){return {type,shape:SHAPES[type].map(r=>r.slice()),x:Math.floor((COLS-SHAPES[type][0].length)/2),y:0}}
@@ -144,7 +145,7 @@ function draw(){
 }
 function drawNext(){nctx.clearRect(0,0,120,100);if(!nextType)return;const s=SHAPES[nextType],size=22,ox=(120-s[0].length*size)/2,oy=(100-s.length*size)/2;nctx.fillStyle='#24213f';nctx.fillRect(0,0,120,100);s.forEach((row,y)=>row.forEach((v,x)=>{if(v){nctx.fillStyle=COLORS[nextType];nctx.fillRect(ox+x*size+1,oy+y*size+1,size-2,size-2);nctx.fillStyle='#ffffff40';nctx.fillRect(ox+x*size+2,oy+y*size+2,size-4,3)}}))}
 function start(){board=newBoard();score=0;lines=0;seen.clear();scoreEl.textContent='0000';linesEl.textContent=`0 / ${TARGET}`;statusEl.textContent='Todo listo. ¡A jugar!';running=true;paused=false;overlay.classList.add('hidden');toast.classList.remove('show');nextType=randomType();spawn();last=performance.now();acc=0;requestAnimationFrame(loop)}
-function loop(t){if(!running)return;const dt=Math.min(t-last,100);last=t;if(!paused){acc+=dt;if(acc>=dropMs){acc=0;if(!collide(piece,0,1))piece.y++;else lock();draw()}}requestAnimationFrame(loop)}
+function loop(t){if(!running)return;const dt=Math.min(t-last,100);last=t;if(!paused){acc+=dt;if(acc>=(fastDrop?90:dropMs)){acc=0;if(!collide(piece,0,1))piece.y++;else lock();draw()}}requestAnimationFrame(loop)}
 function endGame(win){
  running=false;paused=false;overlay.classList.remove('hidden');
  if(win){
@@ -160,7 +161,15 @@ const initialModal=`<h2>BLOCK PARTY</h2><p>Un clásico de bloques. Acomoda las p
 document.getElementById('startBtn').addEventListener('click',start);
 function togglePause(){if(!running)return;paused=!paused;if(paused){overlay.classList.remove('hidden');modalContent.innerHTML='<h2>PAUSA</h2><p>Tómate tu tiempo. ✦</p><button id="resume" class="primary">SEGUIR JUGANDO</button>';document.getElementById('resume').addEventListener('click',()=>{overlay.classList.add('hidden');paused=false;last=performance.now()})}else overlay.classList.add('hidden')}
 document.querySelectorAll('[data-action]').forEach(b=>b.addEventListener('click',()=>{const a=b.dataset.action;if(a==='left')move(-1);if(a==='right')move(1);if(a==='rotate'&&running&&!paused){tryRotate();draw()}if(a==='pause')togglePause()}));
-document.addEventListener('keydown',e=>{if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',' '].includes(e.key))e.preventDefault();if(!running||paused)return;if(e.key==='ArrowLeft')move(-1);if(e.key==='ArrowRight')move(1);if(e.key==='ArrowUp'){tryRotate();draw()}});
+const dropButton=document.querySelector('[data-action="drop"]');
+function stopFastDrop(){fastDrop=false}
+dropButton.addEventListener('pointerdown',e=>{e.preventDefault();if(running&&!paused)fastDrop=true});
+dropButton.addEventListener('pointerup',stopFastDrop);
+dropButton.addEventListener('pointercancel',stopFastDrop);
+dropButton.addEventListener('pointerleave',stopFastDrop);
+window.addEventListener('blur',stopFastDrop);
+
+document.addEventListener('keydown',e=>{if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',' '].includes(e.key))e.preventDefault();if(!running||paused)return;if(e.key==='ArrowLeft')move(-1);if(e.key==='ArrowRight')move(1);if(e.key==='ArrowDown'){if(!collide(piece,0,1)){piece.y++;draw()}else lock()}if(e.key==='ArrowUp'){tryRotate();draw()}});
 let touchX=null;
 canvas.addEventListener('touchstart',e=>{touchX=e.changedTouches[0].clientX},{passive:true});
 canvas.addEventListener('touchend',e=>{if(touchX===null)return;const dx=e.changedTouches[0].clientX-touchX;if(Math.abs(dx)>25)move(dx>0?1:-1);touchX=null},{passive:true});
